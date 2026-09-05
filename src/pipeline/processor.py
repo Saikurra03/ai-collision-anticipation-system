@@ -61,7 +61,7 @@ def _recode_to_h264(path: str, ffmpeg_exe_fallback: bool = True) -> str:
             logger.warning("No ffmpeg for H.264 re-encode; video may not play in browser")
             return path
         raise RuntimeError("ffmpeg required for browser-compatible video output")
-    tmp_path = path + ".h264.tmp"
+    tmp_path = path + ".h264tmp.mp4"
     cmd = [
         ffmpeg_exe, "-y", "-i", path,
         "-c:v", "libx264", "-pix_fmt", "yuv420p",

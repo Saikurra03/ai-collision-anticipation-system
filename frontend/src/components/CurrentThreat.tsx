@@ -1,19 +1,35 @@
-import { ShieldCheck } from 'lucide-react';
-import type { PrimaryThreat } from '../types';
+import { ShieldCheck, AlertTriangle } from 'lucide-react';
+import type { PipelineResultPayload } from '../types';
 import { riskColor } from '../utils/format';
+import { getVerdict } from '../utils/verdict';
 
 interface CurrentThreatProps {
-  threat: PrimaryThreat | null;
+  result: PipelineResultPayload | null;
   live: boolean;
 }
 
-export function CurrentThreat({ threat, live }: CurrentThreatProps) {
-  const objectType = threat?.object_type ?? threat?.class_name;
-  const direction = threat?.direction;
-  const ttc = threat?.estimated_ttc;
-  const trackingId = threat?.tracking_id;
-  const riskLevel = threat?.risk_level ?? 'SAFE';
-  const color = riskColor(riskLevel);
+const verdictColor = (level: string | undefined): string => {
+  switch (level) {
+    case 'HIGH_COLLISION_RISK':
+      return '#DC2626';
+    case 'POTENTIAL_COLLISION_RISK':
+      return '#F59E0B';
+    case 'LOW_RISK':
+      return '#16A34A';
+    case 'NO_SIGNIFICANT_RISK':
+      return '#16A34A';
+    default:
+      return '#94A3B8';
+  }
+};
+
+export function CurrentThreat({ result, live }: CurrentThreatProps) {
+  const v = getVerdict(result);
+  const vColor = verdictColor(v.level);
+  const threat = result?.primary_threat ?? null;
+  const stats = result?.stats;
+  const hasEarlierRisk = v.collision_risk_detected || (stats?.cumulative_max_risk ?? 0) >= 20;
+  const finalFrameSafe = !threat || (threat?.risk_level ?? 'SAFE') === 'SAFE';
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -26,78 +42,90 @@ export function CurrentThreat({ threat, live }: CurrentThreatProps) {
         )}
       </div>
 
-      {!threat ? (
-        <div className="flex items-center gap-3 py-4">
-          <ShieldCheck className="h-5 w-5 text-green-500" />
-          <div>
-            <p className="text-sm font-medium text-slate-900">No Immediate Threat</p>
-            <p className="text-xs text-slate-500">
-              Final analyzed frame has no tracked threat. See the whole-video verdict for earlier risk events.
+      {!result ? (
+        <div className="flex items-start gap-3 py-1">
+          <ShieldCheck className="h-5 w-5 text-slate-400 flex-shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-slate-900">Analysis Not Started</p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              Run analysis to see the whole-video threat assessment.
             </p>
           </div>
         </div>
       ) : (
-        <div className="space-y-4">
-          <div>
+        <div className="space-y-5">
+          {/* Whole-Video Verdict */}
+          <div className="space-y-2">
             <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Object
+              Whole-Video Verdict
             </div>
-            <div className="mt-1 text-lg font-semibold capitalize text-slate-900">
-              {objectType ?? '—'}
-            </div>
-            {trackingId !== undefined && (
-              <div className="mt-0.5 text-xs text-slate-400">Track ID #{trackingId}</div>
-            )}
-          </div>
-
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Approaching From
-            </div>
-            <div className="mt-1 text-lg font-semibold text-slate-900">
-              {(direction ?? '—').toUpperCase()}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Est. TTC
-            </div>
-            <div className="mt-1 text-lg font-semibold text-slate-900">
-              {typeof ttc === 'number' && Number.isFinite(ttc) ? (
-                <>
-                  {ttc.toFixed(2)}{' '}
-                  <span className="text-sm font-normal text-slate-400">seconds (estimated)</span>
-                </>
-              ) : (
-                'N/A'
-              )}
-            </div>
-          </div>
-
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-              Risk Level
-            </div>
-            <div className="mt-1 flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <span
-                className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ background: color }}
+                className="inline-block h-3 w-3 rounded-full flex-shrink-0"
+                style={{ background: vColor }}
               />
-              <span className="text-lg font-semibold" style={{ color }}>
-                {riskLevel}
+              <span className="text-lg font-semibold leading-tight" style={{ color: vColor }}>
+                {v.label}
               </span>
             </div>
-            <div className="mt-0.5 text-xs text-slate-400">
-              Risk score{' '}
-              {Number.isFinite(threat?.risk_score ?? NaN)
-                ? `${Math.round(threat?.risk_score as number)} / 100 (heuristic)`
-                : 'N/A'}
-            </div>
-            <p className="mt-2 text-[11px] text-slate-400">
-              Final-frame state — see whole-video verdict for the full analysis.
-            </p>
+            <p className="text-xs text-slate-500 leading-relaxed">{v.reason}</p>
           </div>
+
+          {/* Earlier Risk Warning */}
+          {hasEarlierRisk && finalFrameSafe && (
+            <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+              <AlertTriangle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-amber-800">Earlier risk event detected</p>
+                <p className="text-[11px] text-amber-700 leading-relaxed">
+                  The final frame is safe, but risk was detected earlier in the video.
+                  See the whole-video verdict above for details.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Final Frame Threat */}
+          {threat && (threat?.risk_level ?? 'SAFE') !== 'SAFE' && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                Final Frame Threat
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full flex-shrink-0"
+                  style={{ background: riskColor(threat?.risk_level) }}
+                />
+                <span className="text-sm font-semibold capitalize text-slate-900">
+                  {threat?.risk_level ?? '—'}
+                </span>
+              </div>
+              <div className="text-sm font-medium text-slate-900 capitalize leading-relaxed break-words">
+                {threat?.object_type ?? threat?.class_name ?? '—'}
+              </div>
+              {threat?.direction && (
+                <div className="text-xs text-slate-500">
+                  Approaching from {(threat.direction).toUpperCase()}
+                </div>
+              )}
+              {typeof threat?.estimated_ttc === 'number' && Number.isFinite(threat.estimated_ttc) ? (
+                <div className="text-xs text-slate-500">
+                  Est. TTC: {threat.estimated_ttc.toFixed(2)}s
+                </div>
+              ) : (
+                <div className="text-xs text-slate-400">Est. TTC: N/A</div>
+              )}
+            </div>
+          )}
+
+          {threat && (threat?.risk_level ?? 'SAFE') === 'SAFE' && (
+            <div className="flex items-start gap-3 py-1">
+              <div className="h-2.5 w-2.5 rounded-full bg-emerald-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Final frame: no elevated threat detected.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

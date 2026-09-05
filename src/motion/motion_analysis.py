@@ -122,11 +122,17 @@ class MotionAnalyzer:
         if state.speed > 0.1:
             state.heading = float(np.degrees(np.arctan2(delta[1], delta[0])))
 
-        # Determine approaching or receding relative to ego center
-        ego = np.array(ego_center)
-        to_ego_before = np.linalg.norm(prev - ego)
-        to_ego_after = np.linalg.norm(curr - ego)
-        state.is_approaching = to_ego_after < to_ego_before
+        # Determine approaching or receding using area growth as primary indicator
+        # (distance to ego center at bottom of frame increases for approaching objects,
+        # which incorrectly marks them as receding)
+        area_trend = self._compute_area_trend(state)
+        if len(state.area_history) >= 3:
+            state.is_approaching = area_trend > 0
+        else:
+            ego = np.array(ego_center)
+            to_ego_before = np.linalg.norm(prev - ego)
+            to_ego_after = np.linalg.norm(curr - ego)
+            state.is_approaching = to_ego_after < to_ego_before
 
         # Classify motion state
         state.motion_state = self._classify_motion(state, ego_center)

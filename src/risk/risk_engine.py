@@ -272,14 +272,12 @@ class RiskEngine:
         return mapping.get(motion_state, 10.0)
 
     def _direction_risk(self, direction: str) -> float:
-        """Convert direction to risk score (0-100)."""
-        # AHEAD objects are highest risk, then LEFT/RIGHT
-        mapping = {
-            "AHEAD": 70.0,
-            "LEFT": 45.0,
-            "RIGHT": 45.0,
-        }
-        return mapping.get(direction, 30.0)
+        """Convert direction to risk score (0-100).
+
+        Direction is not inherently more risky than another.
+        Risk depends on actual motion, trajectory, proximity, and conflict.
+        """
+        return 50.0
 
     def _proximity_risk(self, proximity: float) -> float:
         """Convert proximity to ego to risk score (0-100)."""

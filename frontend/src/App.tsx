@@ -4,6 +4,7 @@ import { VideoSection } from './components/VideoSection';
 import { SystemStatus } from './components/SystemStatus';
 import { CurrentThreat } from './components/CurrentThreat';
 import { ActiveAlert } from './components/ActiveAlert';
+import { FrameProcessing } from './components/FrameProcessing';
 import { SystemDetails } from './components/SystemDetails';
 import { api } from './api';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -31,15 +32,13 @@ export default function App() {
   const handleUpload = async (file: File) => {
     try {
       const res = await api.uploadVideo(file);
-      // E1 FIX: use canonical saved_filename for all backend URLs.
-      // res.filename is the original client name (display only);
-      // res.saved_filename is the actual file on disk (UPLOAD_DIR).
-      // res.path is the absolute server path used for POST /api/process.
       setSelectedVideo({
         file_path: res.path,
         file_name: res.saved_filename,
         display_name: res.filename,
       });
+      setJob(null);
+      setIsPlaying(false);
     } catch (err) {
       console.error(err);
       alert(err instanceof Error ? err.message : 'Upload failed');
@@ -248,19 +247,20 @@ export default function App() {
             </ErrorBoundary>
           </div>
 
-          {/* Right Column - Monitoring & Threats */}
-          <div className="space-y-4">
-            <SystemStatus
-              status={headerStatus}
-              stats={result?.stats ?? null}
-              hasVideo={!!selectedVideo}
-            />
-            <CurrentThreat
-              threat={result?.primary_threat ?? null}
-              live={!!result && job?.status === 'completed'}
-            />
-            <ActiveAlert threat={result?.primary_threat ?? null} />
-          </div>
+{/* Right Column - Monitoring & Threats */}
+            <div className="space-y-4">
+              <SystemStatus
+                status={headerStatus}
+                stats={result?.stats ?? null}
+                hasVideo={!!selectedVideo}
+              />
+              <CurrentThreat
+                result={result}
+                live={!!result && job?.status === 'completed'}
+              />
+              <FrameProcessing job={job} />
+              <ActiveAlert threat={result?.primary_threat ?? null} />
+            </div>
         </div>
 
         {/* Bottom - System Details (collapsible) */}

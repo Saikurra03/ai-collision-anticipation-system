@@ -75,7 +75,7 @@ class CollisionEngine:
         self.frame_width = frame_width or settings.FRAME_WIDTH
         self.frame_height = frame_height or settings.FRAME_HEIGHT
         self.ego_center_x = self.frame_width / 2.0
-        self.ego_center_y = float(self.frame_height)
+        self.ego_center_y = float(self.frame_height) * 0.5
         self.ego_zone_left = self.frame_width * settings.EGO_PATH_LEFT_RATIO
         self.ego_zone_right = self.frame_width * settings.EGO_PATH_RIGHT_RATIO
         self.assessments: Dict[int, CollisionAssessment] = {}

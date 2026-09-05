@@ -123,8 +123,8 @@ class FuturePositionPredictor:
 
         vx, vy = velocity
 
-        # If moving away (vy < 0 means moving up in image = receding), no crossing
-        if vy < -10 and abs(vx) < abs(vy) * 0.5:
+        # If moving away (vy > 0 means moving down in image = receding), no crossing
+        if vy > 10 and abs(vx) < abs(vy) * 0.5:
             return "MOVING AWAY"
 
         # Check if current or predicted position enters the ego zone
@@ -146,9 +146,7 @@ class FuturePositionPredictor:
 
         if crosses_ego:
             return "POTENTIAL CROSSING"
-        elif in_ego_zone and is_converging and vy > 0:
-            return "CONVERGING"
-        elif is_converging and vy > 0:
+        elif is_converging:
             return "CONVERGING"
         elif in_ego_zone:
             return "STABLE PATH"

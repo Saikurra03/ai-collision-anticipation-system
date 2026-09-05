@@ -5,6 +5,7 @@ import {
   Video as VideoIcon,
   Loader2,
   CheckCircle,
+  RefreshCw,
 } from 'lucide-react';
 import type { JobSnapshot, AnalysisVerdict } from '../types';
 import { api } from '../api';
@@ -55,7 +56,7 @@ export function VideoSection({
   selectedFilename,
   selectedDisplayName,
   confidence,
-  isPlaying,
+  isPlaying: _isPlaying,
   onConfidenceChange,
   onReset,
   onFileSelected,
@@ -78,15 +79,15 @@ export function VideoSection({
     if (selectedDisplayName) setSelectedFileName(selectedDisplayName);
   }, [selectedDisplayName]);
 
-  useEffect(() => {
+  // Replay the processed video from the beginning.
+  const handleReplay = () => {
     const v = videoRef.current;
-    if (!v) return;
-    if (isPlaying) {
-      v.play().catch(() => {});
-    } else {
+    if (v) {
+      v.currentTime = 0;
       v.pause();
+      v.play().catch(() => {});
     }
-  }, [isPlaying, job?.result?.output_video_filename]);
+  };
 
   const handleFile = async (file: File) => {
     setIsUploading(true);
@@ -193,15 +194,17 @@ export function VideoSection({
         <div className="relative aspect-video w-full bg-slate-50">
           {processedSrc ? (
             <video
+              key={processedSrc}
               ref={videoRef}
               src={processedSrc}
               className="h-full w-full object-contain"
-              controls={false}
+              controls
               playsInline
               muted
             />
           ) : originalSrc ? (
             <video
+              key={originalSrc}
               ref={videoRef}
               src={originalSrc}
               className="h-full w-full object-contain"
@@ -248,6 +251,20 @@ export function VideoSection({
           )}
         </div>
       </div>
+
+      {/* Replay Button */}
+      {hasResult && processedSrc && (
+        <div className="mt-2 flex justify-end">
+          <button
+            type="button"
+            onClick={handleReplay}
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Replay
+          </button>
+        </div>
+      )}
 
       {/* Controls Below Video */}
       <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -484,136 +501,87 @@ export function VideoSection({
         )}
       </div>
 
-      {/* Frame Processing Section - Below video */}
-      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <h3 className="text-sm font-medium text-slate-900 mb-3">Frame Processing</h3>
-        
-        {!processing && !hasResult && !videoPath ? (
-          <div className="text-center py-4 text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">
-            <p className="font-medium text-slate-500">No video loaded.</p>
-            <p className="text-sm text-slate-400 mt-1">Select a video source to enable frame processing.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 text-sm">
-            <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-xs font-medium uppercase tracking-wider text-slate-400">Frame</div>
-              <div className="mt-1 font-medium text-slate-900">
-                {job?.frame?.toLocaleString() ?? '—'} / {job?.total?.toLocaleString() ?? '—'}
-              </div>
-            </div>
-            <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-xs font-medium uppercase tracking-wider text-slate-400">Progress</div>
-              <div className="mt-1 font-medium text-slate-900">
-                {job?.progress !== undefined ? `${(job.progress * 100).toFixed(1)}%` : '—'}
-              </div>
-            </div>
-            <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-xs font-medium uppercase tracking-wider text-slate-400">FPS</div>
-              <div className="mt-1 font-medium text-slate-900">
-                {(() => {
-                  const fps = job?.result?.stats?.processing_fps ?? job?.stats?.processing_fps;
-                  return fps ? fps.toFixed(1) : '—';
-                })()}
-              </div>
-            </div>
-            <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-xs font-medium uppercase tracking-wider text-slate-400">Objects</div>
-              <div className="mt-1 font-medium text-slate-900">
-                {job?.result?.stats?.total_detections ?? job?.stats?.total_detections ?? '—'}
-              </div>
-            </div>
-            <div className="p-3 rounded-lg border border-slate-200 bg-slate-50">
-              <div className="text-xs font-medium uppercase tracking-wider text-slate-400">Collisions</div>
-              <div className="mt-1 font-medium text-slate-900 text-red-600">
-                {job?.result?.stats?.collision_count ?? job?.stats?.collision_count ?? '—'}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Pipeline Stage — honest coarse status driven by the backend's
-            structured `stage` field (LOADING_VIDEO / ANALYZING_FRAMES /
-            FINALIZING / COMPLETED / FAILED). Per-module badges would be
-            dishonest because all AI modules run together on every frame. */}
-        {(processing || hasResult || job?.status === 'error') && (
-          <div className="mt-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
-            <div className="flex items-center justify-between mb-2">
-              <div className="text-xs font-medium uppercase tracking-wider text-slate-400">Pipeline</div>
-              {processing && job?.progress !== undefined && (
-                <div className="w-32">
-                  <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-blue-500 rounded-full transition-all"
-                      style={{ width: `${Math.min(job.progress * 100, 100)}%` }}
-                    />
-                  </div>
+      {/* Pipeline Stage */}
+      {(processing || hasResult || job?.status === 'error') && (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs font-medium uppercase tracking-wider text-slate-400">Pipeline</div>
+            {processing && job?.progress !== undefined && (
+              <div className="w-32">
+                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 rounded-full transition-all"
+                    style={{ width: `${Math.min(job.progress * 100, 100)}%` }}
+                  />
                 </div>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {(() => {
-                const order = ['LOADING_VIDEO', 'ANALYZING_FRAMES', 'FINALIZING', 'COMPLETED'] as const;
-                const labels: Record<string, string> = {
-                  LOADING_VIDEO: 'Loading video',
-                  ANALYZING_FRAMES: 'Analyzing frames',
-                  FINALIZING: 'Finalizing',
-                  COMPLETED: 'Complete',
-                };
-                const failed = job?.status === 'error';
-                const current = failed
-                  ? -1
-                  : hasResult
-                    ? 3
-                    : Math.max(0, order.indexOf((job?.stage as string) as typeof order[number]));
-                return (
-                  <>
-                    {order.map((s, i) => {
-                      const state = failed && i === current + 1 ? 'failed' : i < current ? 'completed' : i === current ? 'active' : 'pending';
-                      return (
-                        <span
-                          key={s}
-                          className={`px-2 py-1 text-xs font-medium rounded ${
-                            state === 'completed'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : state === 'active'
-                                ? 'bg-blue-100 text-blue-700'
-                                : state === 'failed'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-slate-100 text-slate-500'
-                          }`}
-                        >
-                          {failed && i === 0 ? 'Failed' : labels[s]}
-                          {state === 'active' && <Loader2 className="h-3 w-3 animate-spin ml-1 inline-block" />}
-                          {state === 'completed' && <CheckCircle className="h-3 w-3 ml-1 inline-block" />}
-                        </span>
-                      );
-                    })}
-                    {failed && (
-                      <span className="text-xs text-red-600">{job?.error ?? 'Processing failed'}</span>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
+              </div>
+            )}
           </div>
-        )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {(() => {
+              const order = ['LOADING_VIDEO', 'ANALYZING_FRAMES', 'FINALIZING', 'COMPLETED'] as const;
+              const labels: Record<string, string> = {
+                LOADING_VIDEO: 'Loading video',
+                ANALYZING_FRAMES: 'Analyzing frames',
+                FINALIZING: 'Finalizing',
+                COMPLETED: 'Complete',
+              };
+              const failed = job?.status === 'error';
+              const current = failed
+                ? -1
+                : hasResult
+                  ? 3
+                  : Math.max(0, order.indexOf((job?.stage as string) as typeof order[number]));
+              return (
+                <>
+                  {order.map((s, i) => {
+                    const state = failed && i === current + 1 ? 'failed' : i < current ? 'completed' : i === current ? 'active' : 'pending';
+                    return (
+                      <span
+                        key={s}
+                        className={`px-2 py-1 text-xs font-medium rounded ${
+                          state === 'completed'
+                            ? 'bg-emerald-100 text-emerald-700'
+                            : state === 'active'
+                              ? 'bg-blue-100 text-blue-700'
+                              : state === 'failed'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-slate-100 text-slate-500'
+                        }`}
+                      >
+                        {failed && i === 0 ? 'Failed' : labels[s]}
+                        {state === 'active' && <Loader2 className="h-3 w-3 animate-spin ml-1 inline-block" />}
+                        {state === 'completed' && <CheckCircle className="h-3 w-3 ml-1 inline-block" />}
+                      </span>
+                    );
+                  })}
+                  {failed && (
+                    <span className="text-xs text-red-600">{job?.error ?? 'Processing failed'}</span>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
-        {hasResult && (job?.result?.stats || job?.stats) && (
-          <div className="mt-3 p-3 rounded-lg border border-slate-200 bg-slate-50">
-            <div className="text-xs font-medium uppercase tracking-wider text-slate-400 mb-2">Processing Summary</div>
-            <div className="grid grid-cols-4 gap-2 text-sm">
-              <div><span className="text-slate-400">Frames Processed: </span><span className="font-medium">{(job.result?.stats?.frames_processed ?? job.stats?.frames_processed)?.toLocaleString()}</span></div>
-              <div><span className="text-slate-400">Processing Time: </span><span className="font-medium">{job.result?.stats?.processing_time ?? job.stats?.processing_time}</span></div>
-              <div><span className="text-slate-400">Processing FPS: </span><span className="font-medium">{(job.result?.stats?.processing_fps ?? job.stats?.processing_fps)?.toFixed(1)}</span></div>
-              <div><span className="text-slate-400">Total Frames: </span><span className="font-medium">{(job.result?.stats?.total_frames ?? job.stats?.total_frames)?.toLocaleString()}</span></div>
-              <div><span className="text-slate-400">Unique Tracks: </span><span className="font-medium">{job.result?.stats?.total_unique_tracks ?? job.stats?.total_unique_tracks}</span></div>
-              <div><span className="text-slate-400">Total Detections: </span><span className="font-medium">{job.result?.stats?.total_detections ?? job.stats?.total_detections}</span></div>
-              <div><span className="text-slate-400">Collisions: </span><span className="font-medium text-red-600">{job.result?.stats?.collision_count ?? job.stats?.collision_count}</span></div>
-              <div><span className="text-slate-400">Object Types: </span><span className="font-medium">{Object.keys(job.result?.stats?.class_counts ?? job.stats?.class_counts ?? {}).join(', ') || '—'}</span></div>
-            </div>
+      {/* Processing Summary */}
+      {hasResult && (job?.result?.stats || job?.stats) && (
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-medium uppercase tracking-wider text-slate-400 mb-2">Processing Summary</div>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div><span className="text-slate-400">Frames Processed: </span><span className="font-medium">{(job.result?.stats?.frames_processed ?? job.stats?.frames_processed)?.toLocaleString()}</span></div>
+            <div><span className="text-slate-400">Processing Time: </span><span className="font-medium">{job.result?.stats?.processing_time ?? job.stats?.processing_time}</span></div>
+            <div><span className="text-slate-400">Processing FPS: </span><span className="font-medium">{(job.result?.stats?.processing_fps ?? job.stats?.processing_fps)?.toFixed(1)}</span></div>
+            <div><span className="text-slate-400">Total Frames: </span><span className="font-medium">{(job.result?.stats?.total_frames ?? job.stats?.total_frames)?.toLocaleString()}</span></div>
+            <div><span className="text-slate-400">Unique Tracks: </span><span className="font-medium">{job.result?.stats?.total_unique_tracks ?? job.stats?.total_unique_tracks}</span></div>
+            <div><span className="text-slate-400">Total Detections: </span><span className="font-medium">{job.result?.stats?.total_detections ?? job.stats?.total_detections}</span></div>
+            <div><span className="text-slate-400">Collisions: </span><span className="font-medium text-red-600">{job.result?.stats?.collision_count ?? job.stats?.collision_count}</span></div>
+            <div><span className="text-slate-400">Object Types: </span><span className="font-medium">{Object.keys(job.result?.stats?.class_counts ?? job.stats?.class_counts ?? {}).join(', ') || '—'}</span></div>
           </div>
-        )}
-      </div>
-    </section>
+        </div>
+      )}
+
+      </section>
   );
 }
