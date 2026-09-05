@@ -22,7 +22,8 @@ class TestObjectDetector(unittest.TestCase):
         self.assertLessEqual(settings.DETECTION_CONFIDENCE, 1.0)
 
     def test_settings_directories_exist(self):
-        from config.settings import settings
+        from config.settings import _ensure_dirs, settings
+        _ensure_dirs()
         self.assertTrue(settings.DATA_DIR.exists())
         self.assertTrue(settings.OUTPUT_DIR.exists())
         self.assertTrue(settings.UPLOAD_DIR.exists())
